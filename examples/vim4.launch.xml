@@ -1,6 +1,6 @@
 <launch>
 
-  <let name="source" value="v4l2src device=/dev/media0 io-mode=mmap num-buffers=-1 ! video/x-raw,format=NV21,width=1920,height=1080,framerate=30/1"/>
+  <let name="source" value="v4l2src device=/dev/media0 io-mode=mmap num-buffers=-1 ! video/x-raw,format=NV21,width=1920,height=1080,framerate=30/1 ! videoconvert"/>
 
   <arg name="raw" default="0"/>
   <arg name="jpeg" default="0"/>
