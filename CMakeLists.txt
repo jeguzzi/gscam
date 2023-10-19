@@ -16,6 +16,10 @@ find_package(rclcpp_components REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(camera_calibration_parsers REQUIRED)
 find_package(camera_info_manager REQUIRED)
+find_package(ffmpeg_image_transport_msgs REQUIRED)
+
+
+link_directories("/opt/homebrew/Cellar/gstreamer/1.22.6/lib" "/opt/homebrew/Cellar/glib/2.78.0/lib" "/opt/homebrew/Cellar/gettext/0.22.3/lib")
 
 include_directories(
   include
@@ -41,6 +45,29 @@ rclcpp_components_register_node(gscam
   EXECUTABLE gscam_node
 )
 
+# message("GSTREAMER_LIBRARIES ${GSTREAMER_LIBRARIES}")
+
+add_library(gscam_multi SHARED src/gscam_multi.cpp)
+target_link_libraries(gscam_multi
+  ${ament_LIBRARIES}
+  ${GSTREAMER_LIBRARIES}
+  ${GST_APP_LIBRARIES})
+ament_target_dependencies(gscam_multi
+  "class_loader"
+  "image_transport"
+  "rclcpp"
+  "rclcpp_components"
+  "sensor_msgs"
+  "ffmpeg_image_transport_msgs"
+  "camera_calibration_parsers"
+  "camera_info_manager")
+
+rclcpp_components_register_node(gscam_multi
+  PLUGIN "gscam::GSCamMulti"
+  EXECUTABLE gscam_multi_node
+)
+
+
 set(node_plugins "${node_plugins}gscam::GSCam;$<TARGET_FILE:gscam>\n")
 
 if(BUILD_TESTING)
@@ -62,9 +89,9 @@ ament_export_dependencies(class_loader)
 
 ament_export_include_directories(include)
 
-ament_export_targets(export_gscam)
+ament_export_targets(export_gscam export_gscam_multi)
 
-ament_export_libraries(gscam)
+ament_export_libraries(gscam gscam_multi)
 
 ament_package()
 
@@ -72,6 +99,11 @@ ament_package()
 
 install(TARGETS gscam
   EXPORT export_gscam
+  DESTINATION lib
+)
+
+install(TARGETS gscam_multi
+  EXPORT export_gscam_multi
   DESTINATION lib
 )
 
