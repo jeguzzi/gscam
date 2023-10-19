@@ -15,7 +15,7 @@
   <arg name="ip" default="192.168.1.124"/>
 
   <let name="tf_prefix" value="$(eval '\'$(var name)/\' if \'$(var name)\' else \'\'')"/>
-  <let name="frame_id" default="$(var tf_prefix)/camera_optical_link"/>
+  <arg name="frame_id" default="$(var tf_prefix)/camera_optical_link"/>
   <let name="source" value="v4l2src device=/dev/media0 io-mode=mmap ! video/x-raw,format=NV21,width=$(var width),height=$(var height),framerate=$(var fps)/1 ! videoconvert"/>
 
   <node namespace="$(var name)" name="gscam" pkg="gscam" exec="gscam_multi_node" output="screen">
