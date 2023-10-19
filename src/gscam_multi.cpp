@@ -726,11 +726,13 @@ bool GSCamMulti::configure() {
 
   use_sensor_data_qos_ = declare_parameter("use_sensor_data_qos", false);
 
+  go_to_ready_when_paused = declare_parameter("go_to_ready_when_paused", true);
+
   return true;
 }
 
 bool GSCamMulti::stop_stream() {
-  gst_element_set_state(pipeline_, GST_STATE_READY);
+  gst_element_set_state(pipeline_, go_to_ready_when_paused? GST_STATE_READY : GST_STATE_PAUSED);
   if (gst_element_get_state(pipeline_, NULL, NULL, -1) ==
       GST_STATE_CHANGE_FAILURE) {
     RCLCPP_FATAL(get_logger(),

@@ -31,6 +31,8 @@
     <param name="h265" value="$(var h265)"/>
     <param name="udp" value="$(var udp)"/>
     <param name="use_gst_timestamps" value="true"/>
+    <param name="use_sensor_data_qos" value="true"/>
+    <param name="go_to_ready_when_paused" value="false"/>
 
     <param name="ros_sinks">
       <param name="raw">
