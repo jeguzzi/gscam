@@ -20,7 +20,6 @@
     <param name="h264" value="$(var h264)"/>
     <param name="h265" value="$(var h265)"/>
     <param name="udp" value="$(var udp)"/>
-    <param name="file" value="$(var file)"/>
     <param name="use_gst_timestamps" value="true"/>
 
     <param name="ros_sinks">
