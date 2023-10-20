@@ -21,9 +21,11 @@
   <arg name="camera_format" default="BGR"/>
   <arg name="raw_format" default="BGR"/>
 
+  <arg name="source_format" default="! video/x-raw,format=$(var camera_format),width=$(var width),height=$(var height),framerate=$(var fps)/1"/>
+
   <let name="tf_prefix" value="$(eval '\'$(var name)/\' if \'$(var name)\' else \'\'')"/>
   <arg name="frame_id" default="$(var tf_prefix)/camera_optical_link"/>
-  <let name="source" value="v4l2src device=/dev/media0 io-mode=mmap ! video/x-raw,format=$(var camera_format),width=$(var width),height=$(var height),framerate=$(var fps)/1 ! videoconvert"/>
+  <let name="source" value="v4l2src device=/dev/media0 io-mode=mmap $(var source_format) ! videoconvert"/>
 
   <node namespace="$(var name)" name="gscam" pkg="gscam" exec="gscam_multi_node" output="screen">
     <param name="camera_name" value="default"/>
