@@ -49,7 +49,6 @@ static GstFlowReturn new_sample(GstElement *sink, ROSSink *ros_sink) {
     gst_sample_unref(sample);
     return GST_FLOW_OK;
   }
-
   return GST_FLOW_ERROR;
 }
 
@@ -268,6 +267,7 @@ bool RawROSSink::init(GstElement *bin, const GstCaps *caps,
 }
 
 void RawROSSink::publish(GstSample *sample) {
+
   GstBuffer *buf = gst_sample_get_buffer(sample);
   GstMemory *memory = gst_buffer_get_memory(buf, 0);
   GstMapInfo info;
@@ -330,8 +330,10 @@ void RawROSSink::publish(GstSample *sample) {
   // we can free the buffer allocated by gstreamer
 
   std::copy(buf_data, (buf_data) + (buf_size), msg.data.begin());
+
   pub->publish(msg);
   cam->publish_info(buf->pts);
+
 
   // Release the buffer
   if (buf) {
@@ -572,6 +574,11 @@ void GSCamMulti::init_sinks() {
   for (const auto &name : names) {
     const std::string prefix = "sinks." + name + ".";
     bool eos = false;
+    bool enabled = true;
+    if (has_parameter(prefix + "enabled")) {
+      enabled = get_parameter(prefix + "enabled").as_bool();
+    }
+    if (!enabled) continue;
     if (has_parameter(prefix + "eos")) {
       eos = get_parameter(prefix + "eos").as_bool();
     }
@@ -582,6 +589,11 @@ void GSCamMulti::init_sinks() {
     const std::string prefix = "ros_sinks." + name + ".";
     std::string topic = "";
     std::string config = "";
+    bool enabled = true;
+    if (has_parameter(prefix + "enabled")) {
+      enabled = get_parameter(prefix + "enabled").as_bool();
+    }
+    if (!enabled) continue;
     if (has_parameter(prefix + "config")) {
       config = get_parameter(prefix + "config").as_string();
     }
@@ -758,7 +770,7 @@ bool GSCamMulti::init_stream() {
   GError *error = 0;  // Assignment to zero is a gst requirement
 
   pipeline_ = gst_parse_launch(gsconfig_.c_str(), &error);
-  if (pipeline_ == NULL) {
+  if (pipeline_ == NULL || error) {
     RCLCPP_FATAL_STREAM(get_logger(), error->message);
     return false;
   }

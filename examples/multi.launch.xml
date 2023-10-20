@@ -6,16 +6,24 @@
   <let name="tf_prefix" value="$(eval '\'$(var name)/\' if \'$(var name)\' else \'\'')"/>
   <arg name="frame_id" default="$(var tf_prefix)/camera_optical_link"/>
 
-  <let name="source" value="videotestsrc pattern=ball is-live=true ! video/x-raw,width=1280,height=720 ! videoconvert" if="$(eval '\'$(var src)\' == \'test\'')"/>
-  <let name="source" value="avfvideosrc ! video/x-raw,width=640,height=480 ! videoconvert" if="$(eval '\'$(var src)\' == \'avf\'')"/>
+  <arg name="width" default="1920"/>
+  <arg name="height" default="1080"/>
+
+  <arg name="source_format" default="BGR"/>
+  <arg name="raw_format" default="BGR"/>
+
+  <let name="source" value="videotestsrc pattern=ball is-live=true ! video/x-raw,format=$(var source_format),width=$(var width),height=$(var height) ! videoconvert" if="$(eval '\'$(var src)\' == \'test\'')"/>
+  <let name="source" value="avfvideosrc ! video/x-raw,format=$(var source_format),width=$(var width),height=$(var height) ! videoconvert" if="$(eval '\'$(var src)\' == \'avf\'')"/>
 
   <arg name="raw" default="0"/>
   <arg name="jpeg" default="0"/>
   <arg name="h264" default="0"/>
   <arg name="video" default="0"/>
   <arg name="udp" default="0"/>
+  <arg name="tcp" default="0"/>
   <arg name="file" default="0"/>
   <arg name="h265" default="0"/>
+  <arg name="fake" default="0"/>
 
   <arg name="bitrate" default="5000"/>
 
@@ -39,16 +47,19 @@
     <param name="h265" value="$(var h265)"/>
     <param name="video" value="$(var video)"/>
     <param name="udp" value="$(var udp)"/>
+    <param name="tcp" value="$(var tcp)"/>
     <param name="file" value="$(var file)"/>
+    <param name="fake" value="$(var fake)"/>
     <param name="use_gst_timestamps" value="$(var use_gst_timestamps)"/>
     <param name="use_sensor_data_qos" value="$(var use_sensor_data_qos)"/>
     <param name="go_to_ready_when_paused" value="$(var go_to_ready_when_paused)"/>
 
     <param name="ros_sinks">
-      <param name="raw">
+      <param name="raw" >
         <param name="config" value="videoconvert"/>
-        <param name="caps" value="video/x-raw,format=BGR"/>
+        <param name="caps" value="video/x-raw,format=$(var raw_format)"/>
         <param name="topic" value="image_raw"/>
+        <param name="enabled" value="$(eval '$(var raw) >= 0')"/>
       </param>
       <param name="jpeg">
         <param name="config" value="videoconvert ! jpegenc quality=50"/>
@@ -62,7 +73,7 @@
         <param name="encoding" value="libx264"/>
       </param>
       <param name="h265">
-        <param name="config" value='videoconvert ! vtenc_h265_hw max-keyframe-interval=1 realtime=true bitrate=(var bitrate) allow-frame-reordering=false ! h265parse config-interval=-1 disable-passthrough=true'/> 
+        <param name="config" value='videoconvert ! vtenc_h265_hw max-keyframe-interval=1 realtime=true bitrate=$(var bitrate) allow-frame-reordering=false ! h265parse config-interval=-1 disable-passthrough=true'/> 
         <param name="caps" value="video/x-h265,parsed=true,stream-format=byte-stream,alignment=au"/>
         <param name="topic" value="image_raw/ffmpeg"/>
         <param name="encoding" value="hevc"/>
@@ -75,6 +86,15 @@
       <param name="udp">
         <param name="config" value="videoconvert ! x264enc tune=zerolatency ! rtph264pay ! udpsink host=localhost port=12345 async=false"/>
       </param>
+      <param name="tcp">
+        <param name="config" value="videoconvert ! x264enc tune=zerolatency ! rtph264pay ! rtpstreampay ! tcpserversink host=localhost port=54321 async=false"/>
+      </param>
+      <param name="fake">
+        <param name="config" value="videoconvert ! fakesink async=false"/>
+      </param>
+      <param name="fps">
+        <param name="config" value="videoconvert ! fpsdisplaysink text-overlay=false video-sink=fakesink async=true"/>
+      </param>
 <!--       <param name="file">
         <param name="config" value="videoconvert ! x264enc ! h264parse ! qtmux ! filesink location=test.mov async=false"/>
         <param name="eos" value="true"/>
@@ -83,3 +103,7 @@
   </node>
 
 </launch>
+
+<!-- gst-launch-1.0 tcpclientsrc host=localhost port=54321 ! application/x-rtp-stream ! rtpstreamdepay ! rtpjitterbuffer ! rtph264depay ! avdec_h264 ! videoconvert ! autovideosink -->
+
+<!-- gst-launch-1.0 udpsrc address=localhost port=12345 ! application/x-rtp ! rtpjitterbuffer ! rtph264depay ! avdec_h264 ! videoconvert ! autovideosink -->

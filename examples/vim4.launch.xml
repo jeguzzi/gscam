@@ -1,22 +1,29 @@
 <launch>
 
-
   <arg name="name" default=""/>
   <arg name="raw" default="0"/>
-  <arg name="jpeg" default="0"/>
-  <arg name="h264" default="0"/>
-  <arg name="h265" default="0"/>
-  <arg name="udp" default="0"/>
+  <arg name="jpeg" default="-1"/>
+  <arg name="h264" default="-1"/>
+  <arg name="h265" default="-1"/>
+  <arg name="udp" default="-1"/>
+  <arg name="tcp" default="-1"/>
   <arg name="width" default="1920"/>
   <arg name="height" default="1080"/>
   <arg name="fps" default="30"/>
   <arg name="bitrate" default="8000"/>
-  <arg name="port" default="12345"/>
-  <arg name="ip" default="192.168.1.124"/>
+  <arg name="udp_port" default="12345"/>
+  <arg name="udp_ip" default="192.168.1.124"/>
+  <arg name="tcp_port" default="12345"/>
+  <arg name="tcp_ip" default="192.168.1.140"/>
+
+  <arg name="jpeg_encoder" default="amljpegenc"/>
+
+  <arg name="camera_format" default="BGR"/>
+  <arg name="raw_format" default="BGR"/>
 
   <let name="tf_prefix" value="$(eval '\'$(var name)/\' if \'$(var name)\' else \'\'')"/>
   <arg name="frame_id" default="$(var tf_prefix)/camera_optical_link"/>
-  <let name="source" value="v4l2src device=/dev/media0 io-mode=mmap ! video/x-raw,format=NV21,width=$(var width),height=$(var height),framerate=$(var fps)/1 ! videoconvert"/>
+  <let name="source" value="v4l2src device=/dev/media0 io-mode=mmap ! video/x-raw,format=$(var camera_format),width=$(var width),height=$(var height),framerate=$(var fps)/1 ! videoconvert"/>
 
   <node namespace="$(var name)" name="gscam" pkg="gscam" exec="gscam_multi_node" output="screen">
     <param name="camera_name" value="default"/>
@@ -30,6 +37,7 @@
     <param name="h264" value="$(var h264)"/>
     <param name="h265" value="$(var h265)"/>
     <param name="udp" value="$(var udp)"/>
+    <param name="tcp" value="$(var tcp)"/>
     <param name="use_gst_timestamps" value="true"/>
     <param name="use_sensor_data_qos" value="true"/>
     <param name="go_to_ready_when_paused" value="false"/>
@@ -37,30 +45,39 @@
     <param name="ros_sinks">
       <param name="raw">
         <param name="config" value="videoconvert"/>
-        <param name="caps" value="video/x-raw,format=BGR"/>
+        <param name="caps" value="video/x-raw,format=$(var raw_format)"/>
         <param name="topic" value="image_raw"/>
+        <param name="enabled" value="$(eval '$(var raw) >= 0')"/>
       </param>
       <param name="jpeg">
-        <param name="config" value="videoconvert ! amljpegenc"/>
+        <param name="config" value="videoconvert ! $(var jpeg_encoder)"/>
         <param name="caps" value="image/jpeg"/>
         <param name="topic" value="image_raw/compressed"/>
+        <param name="enabled" value="$(eval '$(var jpeg) >= 0')"/>
       </param>
       <param name="h264">
         <param name="config" value='videoconvert ! amlvenc bitrate=$(var bitrate) gop=1 ! h264parse config-interval=-1 disable-passthrough=true'/> 
         <param name="caps" value="video/x-h264,parsed=true,stream-format=byte-stream,alignment=au"/>
         <param name="topic" value="image_raw/ffmpeg"/>
         <param name="encoding" value="libx264"/>
+        <param name="enabled" value="$(eval '$(var h264) >= 0')"/>
       </param>
       <param name="h265">
         <param name="config" value='videoconvert ! amlvenc bitrate=$(var bitrate) gop=1 ! h265parse config-interval=-1 disable-passthrough=true'/> 
         <param name="caps" value="video/x-h265,parsed=true,stream-format=byte-stream,alignment=au"/>
         <param name="topic" value="image_raw/ffmpeg"/>
         <param name="encoding" value="hevc"/>
+        <param name="enabled" value="$(eval '$(var h265) >= 0')"/>
       </param>
     </param>
     <param name="sinks">
       <param name="udp">
-        <param name="config" value="videoconvert ! amlvenc bitrate=$(var bitrate) ! rtph264pay ! udpsink host=$(var ip) port=$(var port) async=false"/>
+        <param name="config" value="videoconvert ! amlvenc bitrate=$(var bitrate) ! rtph265pay ! udpsink host=$(var udp_ip) port=$(var udp_port) async=false"/>
+        <param name="enabled" value="$(eval '$(var udp) >= 0')"/>
+      </param>
+      <param name="tcp">
+        <param name="config" value="videoconvert ! amlvenc bitrate=$(var bitrate) ! rtph265pay ! rtpstreampay ! tcpserversink host=$(var tcp_ip) port=$(var tcp_port) async=false"/>
+        <param name="enabled" value="$(eval '$(var tcp) >= 0')"/>
       </param>
     </param>
   </node>
