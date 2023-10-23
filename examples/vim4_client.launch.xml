@@ -3,10 +3,11 @@
   <arg name="name" default=""/>
   <arg name="raw" default="1"/>
   <arg name="raw_format" default="BGR"/>
+  <arg name="ip" default="192.168.201.140"/>
 
   <let name="tf_prefix" value="$(eval '\'$(var name)/\' if \'$(var name)\' else \'\'')"/>
   <arg name="frame_id" default="$(var tf_prefix)/camera_optical_link"/>
-  <let name="source" value="tcpclientsrc host=192.168.1.140 port=12345 ! application/x-rtp-stream ! rtpstreamdepay ! rtpjitterbuffer ! rtph265depay ! avdec_h265"/>
+  <let name="source" value="tcpclientsrc host=$(var ip) port=12345 ! application/x-rtp-stream ! rtpstreamdepay ! rtpjitterbuffer ! rtph265depay ! avdec_h265"/>
 
   <node namespace="$(var name)" name="gscam" pkg="gscam" exec="gscam_multi_node" output="screen">
     <param name="camera_name" value="default"/>
