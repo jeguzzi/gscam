@@ -1,0 +1,31 @@
+<launch>
+
+  <arg name="name" default=""/>
+  <arg name="raw" default="1"/>
+  <arg name="raw_format" default="BGR"/>
+
+  <let name="tf_prefix" value="$(eval '\'$(var name)/\' if \'$(var name)\' else \'\'')"/>
+  <arg name="frame_id" default="$(var tf_prefix)/camera_optical_link"/>
+  <let name="source" value="tcpclientsrc host=192.168.1.140 port=12345 ! application/x-rtp-stream ! rtpstreamdepay ! rtpjitterbuffer ! rtph265depay ! avdec_h265"/>
+
+  <node namespace="$(var name)" name="gscam" pkg="gscam" exec="gscam_multi_node" output="screen">
+    <param name="camera_name" value="default"/>
+    <param name="camera_info_url" value="package://gscam/examples/uncalibrated_parameters.ini"/>
+    <param name="source" value="$(var source)"/>
+    <param name="frame_id" value="$(var frame_id)"/>
+    <param name="sync_sink" value="true"/>
+    <param name="preroll" value="true"/>
+    <param name="raw" value="$(var raw)"/>
+    <param name="use_gst_timestamps" value="true"/>
+    <param name="use_sensor_data_qos" value="true"/>
+    <param name="go_to_ready_when_paused" value="true"/>
+    <param name="ros_sinks">
+      <param name="raw">
+        <param name="config" value="videoconvert"/>
+        <param name="caps" value="video/x-raw,format=$(var raw_format)"/>
+        <param name="topic" value="image_raw_1"/>
+      </param>
+    </param>
+  </node>
+
+</launch>

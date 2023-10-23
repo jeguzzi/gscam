@@ -666,6 +666,8 @@ GSCamMulti::~GSCamMulti() {
 
   gst_element_send_event(pipeline_, gst_event_new_eos());
   sleep(1);
+  gst_element_set_state(pipeline_, GST_STATE_READY);
+  sleep(1);
 
   g_main_loop_quit(main_loop);
   pipeline_thread_.join();
@@ -769,16 +771,24 @@ bool GSCamMulti::init_stream() {
 
   GError *error = 0;  // Assignment to zero is a gst requirement
 
-  pipeline_ = gst_parse_launch(gsconfig_.c_str(), &error);
-  if (pipeline_ == NULL || error) {
+  GstElement * source = gst_parse_launch(gsconfig_.c_str(), &error);
+  if (source == NULL || error) {
     RCLCPP_FATAL_STREAM(get_logger(), error->message);
     return false;
+  }
+
+  if (!GST_IS_BIN(source)) {
+    pipeline_ = gst_pipeline_new(NULL);
+    g_assert(pipeline_);
+    gst_bin_add_many(GST_BIN(pipeline_), source, NULL);
+  } else {
+    pipeline_ = source;
   }
 
   tee = gst_element_factory_make("tee", "tee");
   gst_bin_add_many(GST_BIN(pipeline_), tee, NULL);
   if (GST_IS_PIPELINE(pipeline_)) {
-    GstPad *outpad = gst_bin_find_unlinked_pad(GST_BIN(pipeline_), GST_PAD_SRC);
+    GstPad *outpad = gst_bin_find_unlinked_pad(GST_BIN(source), GST_PAD_SRC);
     g_assert(outpad);
 
     GstElement *outelement = gst_pad_get_parent_element(outpad);

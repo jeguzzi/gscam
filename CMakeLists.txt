@@ -108,6 +108,6 @@ install(TARGETS gscam_multi
 )
 
 install(
-  DIRECTORY "examples"
+  DIRECTORY "examples" "config"
   DESTINATION "share/${PROJECT_NAME}"
 )

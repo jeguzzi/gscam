@@ -1,87 +1,111 @@
 <launch>
-
-  <arg name="name" default=""/>
-  <arg name="raw" default="0"/>
-  <arg name="jpeg" default="-1"/>
-  <arg name="h264" default="-1"/>
-  <arg name="h265" default="-1"/>
-  <arg name="udp" default="-1"/>
-  <arg name="tcp" default="-1"/>
-  <arg name="width" default="1920"/>
-  <arg name="height" default="1080"/>
-  <arg name="fps" default="30"/>
-  <arg name="bitrate" default="8000"/>
-  <arg name="udp_port" default="12345"/>
-  <arg name="udp_ip" default="192.168.1.124"/>
-  <arg name="tcp_port" default="12345"/>
-  <arg name="tcp_ip" default="192.168.1.140"/>
-
-  <arg name="jpeg_encoder" default="amljpegenc"/>
-
-  <arg name="camera_format" default="BGR"/>
-  <arg name="raw_format" default="BGR"/>
-
-  <arg name="source_format" default="! video/x-raw,format=$(var camera_format),width=$(var width),height=$(var height),framerate=$(var fps)/1"/>
-
+  <arg default="" name="name"/>
+  <arg default="0" name="raw"/>
+  <arg default="-1" name="jpeg"/>
+  <arg default="-1" name="h264"/>
+  <arg default="-1" name="h265"/>
+  <arg default="-1" name="udp"/>
+  <arg default="-1" name="tcp"/>
+  <arg default="1920" name="width"/>
+  <arg default="1080" name="height"/>
+  <arg default="30" name="fps"/>
+  <arg default="8000" name="bitrate"/>
+  <arg default="12345" name="udp_port"/>
+  <arg default="192.168.1.124" name="udp_ip"/>
+  <arg default="12345" name="tcp_port"/>
+  <arg default="192.168.1.140" name="tcp_ip"/>
+  <arg default="amljpegenc" name="jpeg_encoder"/>
+  <arg default="RGB" name="camera_format"/>
+  <arg default="RGB" name="raw_format"/>
+  <arg default="v4l2src device=/dev/media0 io-mode=mmap ! video/x-raw,format=$(var camera_format),width=$(var width),height=$(var height),framerate=$(var fps)/1 ! videoconvert" name="source_config"/>
+  <arg default="videoconvert ! $(var jpeg_encoder)" name="jpeg_config"/>
+  <arg default="videoconvert" name="raw_config"/>
+  <arg default="videoconvert ! amlvenc bitrate=$(var bitrate) gop=1 ! h264parse config-interval=-1 disable-passthrough=true" name="h264_config"/>
+  <arg default="videoconvert ! amlvenc bitrate=$(var bitrate) gop=1 ! h265parse config-interval=-1 disable-passthrough=true" name="h265_config"/>
+  <arg default="videoconvert ! amlvenc bitrate=$(var bitrate) ! rtph265pay ! udpsink host=$(var udp_ip) port=$(var udp_port) async=false" name="udp_config"/>
+  <arg default="videoconvert ! amlvenc bitrate=$(var bitrate) ! rtph265pay ! rtpstreampay ! tcpserversink host=$(var tcp_ip) port=$(var tcp_port) async=false" name="tcp_config"/>
   <let name="tf_prefix" value="$(eval '\'$(var name)/\' if \'$(var name)\' else \'\'')"/>
-  <arg name="frame_id" default="$(var tf_prefix)/camera_optical_link"/>
-  <let name="source" value="v4l2src device=/dev/media0 io-mode=mmap $(var source_format) ! videoconvert"/>
-
-  <node namespace="$(var name)" name="gscam" pkg="gscam" exec="gscam_multi_node" output="screen">
-    <param name="camera_name" value="default"/>
-    <param name="camera_info_url" value="package://gscam/examples/uncalibrated_parameters.ini"/>
-    <param name="source" value="$(var source)"/>
-    <param name="frame_id" value="$(var frame_id)"/>
-    <param name="sync_sink" value="true"/>
-    <param name="preroll" value="true"/>
-    <param name="raw" value="$(var raw)"/>
-    <param name="jpeg" value="$(var jpeg)"/>
-    <param name="h264" value="$(var h264)"/>
-    <param name="h265" value="$(var h265)"/>
-    <param name="udp" value="$(var udp)"/>
-    <param name="tcp" value="$(var tcp)"/>
-    <param name="use_gst_timestamps" value="true"/>
-    <param name="use_sensor_data_qos" value="true"/>
-    <param name="go_to_ready_when_paused" value="false"/>
-
-    <param name="ros_sinks">
-      <param name="raw">
-        <param name="config" value="videoconvert"/>
-        <param name="caps" value="video/x-raw,format=$(var raw_format)"/>
-        <param name="topic" value="image_raw"/>
-        <param name="enabled" value="$(eval '$(var raw) >= 0')"/>
+  <arg default="$(var tf_prefix)/camera_optical_link" name="frame_id"/>
+  <arg default="default" name="camera_name"/>
+  <arg default="uncalibrated_parameters.ini" name="camera_info"/>
+  <arg default="0.0" name="x"/>
+  <arg default="0.0" name="y"/>
+  <arg default="0.0" name="z"/>
+  <arg default="0.0" name="roll"/>
+  <arg default="0.0" name="pitch"/>
+  <arg default="0.0" name="yaw"/>
+  <arg default="" name="parent_frame_id"/>
+  <let name="tf2_ros_old_api" value="$(eval '\'$(env ROS_DISTRO)\' == \'foxy\'')"/>
+  <let name="has_parent_frame" value="$(eval '\'$(var parent_frame_id)\' != \'\'')"/>
+  <arg default="false" name="model"/>
+  <group>
+    <push-ros-namespace namespace="$(var name)"/>
+    <node exec="gscam_multi_node" name="gscam" output="screen" pkg="gscam">
+      <param name="camera_name" value="$(var camera_name)"/>
+      <param name="camera_info_url" value="package://gscam/config/$(var camera_info)"/>
+      <param name="source" value="$(var source_config)"/>
+      <param name="frame_id" value="$(var frame_id)"/>
+      <param name="sync_sink" value="true"/>
+      <param name="preroll" value="true"/>
+      <param name="raw" value="$(var raw)"/>
+      <param name="jpeg" value="$(var jpeg)"/>
+      <param name="h264" value="$(var h264)"/>
+      <param name="h265" value="$(var h265)"/>
+      <param name="udp" value="$(var udp)"/>
+      <param name="tcp" value="$(var tcp)"/>
+      <param name="use_gst_timestamps" value="true"/>
+      <param name="use_sensor_data_qos" value="true"/>
+      <param name="go_to_ready_when_paused" value="false"/>
+      <param name="ros_sinks">
+        <param name="raw">
+          <param name="config" value="$(var raw_config)"/>
+          <param name="caps" value="video/x-raw,format=$(var raw_format)"/>
+          <param name="topic" value="image_raw"/>
+          <param name="enabled" value="$(eval '$(var raw) &gt;= 0')"/>
+        </param>
+        <param name="jpeg">
+          <param name="config" value="$(var jpeg_config)"/>
+          <param name="caps" value="image/jpeg"/>
+          <param name="topic" value="image_raw/compressed"/>
+          <param name="enabled" value="$(eval '$(var jpeg) &gt;= 0')"/>
+        </param>
+        <param name="h264">
+          <param name="config" value="$(var h264_config)"/>
+          <param name="caps" value="video/x-h264,parsed=true,stream-format=byte-stream,alignment=au"/>
+          <param name="topic" value="image_raw/ffmpeg"/>
+          <param name="encoding" value="libx264"/>
+          <param name="enabled" value="$(eval '$(var h264) &gt;= 0')"/>
+        </param>
+        <param name="h265">
+          <param name="config" value="$(var h265_config)"/>
+          <param name="caps" value="video/x-h265,parsed=true,stream-format=byte-stream,alignment=au"/>
+          <param name="topic" value="image_raw/ffmpeg"/>
+          <param name="encoding" value="hevc"/>
+          <param name="enabled" value="$(eval '$(var h265) &gt;= 0')"/>
+        </param>
       </param>
-      <param name="jpeg">
-        <param name="config" value="videoconvert ! $(var jpeg_encoder)"/>
-        <param name="caps" value="image/jpeg"/>
-        <param name="topic" value="image_raw/compressed"/>
-        <param name="enabled" value="$(eval '$(var jpeg) >= 0')"/>
+      <param name="sinks">
+        <param name="udp">
+          <param name="config" value="$(var udp_config)"/>
+          <param name="enabled" value="$(eval '$(var udp) &gt;= 0')"/>
+        </param>
+        <param name="tcp">
+          <param name="config" value="$(var tcp_config)"/>
+          <param name="enabled" value="$(eval '$(var tcp) &gt;= 0')"/>
+        </param>
       </param>
-      <param name="h264">
-        <param name="config" value='videoconvert ! amlvenc bitrate=$(var bitrate) gop=1 ! h264parse config-interval=-1 disable-passthrough=true'/> 
-        <param name="caps" value="video/x-h264,parsed=true,stream-format=byte-stream,alignment=au"/>
-        <param name="topic" value="image_raw/ffmpeg"/>
-        <param name="encoding" value="libx264"/>
-        <param name="enabled" value="$(eval '$(var h264) >= 0')"/>
-      </param>
-      <param name="h265">
-        <param name="config" value='videoconvert ! amlvenc bitrate=$(var bitrate) gop=1 ! h265parse config-interval=-1 disable-passthrough=true'/> 
-        <param name="caps" value="video/x-h265,parsed=true,stream-format=byte-stream,alignment=au"/>
-        <param name="topic" value="image_raw/ffmpeg"/>
-        <param name="encoding" value="hevc"/>
-        <param name="enabled" value="$(eval '$(var h265) >= 0')"/>
-      </param>
-    </param>
-    <param name="sinks">
-      <param name="udp">
-        <param name="config" value="videoconvert ! amlvenc bitrate=$(var bitrate) ! rtph265pay ! udpsink host=$(var udp_ip) port=$(var udp_port) async=false"/>
-        <param name="enabled" value="$(eval '$(var udp) >= 0')"/>
-      </param>
-      <param name="tcp">
-        <param name="config" value="videoconvert ! amlvenc bitrate=$(var bitrate) ! rtph265pay ! rtpstreampay ! tcpserversink host=$(var tcp_ip) port=$(var tcp_port) async=false"/>
-        <param name="enabled" value="$(eval '$(var tcp) >= 0')"/>
-      </param>
-    </param>
-  </node>
-
+    </node>
+    <include file="$(find-pkg-share gscam)/launch/vim4.launch.py" if="$(var model)">
+      <arg name="camera_model" value="imx415"/>
+      <arg name="name" value="$(var name)"/>
+    </include>
+    <group if="$(var has_parent_frame)">
+      <group if="$(var tf2_ros_old_api)">
+        <node args="$(var x) $(var y) $(var z) $(var roll) $(var pitch) $(var yaw) $(var parent_frame_id) $(var name)/base_link " exec="static_transform_publisher" name="static_tf_pub_lidar" output="screen" pkg="tf2_ros"/>
+      </group>
+      <group unless="$(var tf2_ros_old_api)">
+        <node args="--x $(var x) --y $(var y) --z $(var z) --roll $(var roll) --pitch $(var pitch) --yaw $(var yaw) --frame-id $(var parent_frame_id) --child-frame-id $(var name)/base_link " exec="static_transform_publisher" name="static_tf_pub_lidar" output="screen" pkg="tf2_ros"/>
+      </group>
+    </group>
+  </group>
 </launch>

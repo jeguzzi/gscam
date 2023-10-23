@@ -1,0 +1,78 @@
+<?xml version="1.0"?>
+<robot name="vim4" xmlns:xacro="http://playerstage.sourceforge.net/gazebo/xmlschema/#xacro">
+
+  <xacro:arg name="name" default=""/>
+  <xacro:arg name="base_frame_id" default="base_link"/>
+  <xacro:arg name="camera_frame_id" default="camera_link"/>
+  <xacro:arg name="camera_optical_frame_id" default="camera_optical_link"/>
+
+  <xacro:property name="_name" value="$(arg name)"/>
+  <xacro:if value="${_name != ''}">
+    <xacro:property name="tf_prefix" value="${_name}/"/>
+  </xacro:if>
+  <xacro:if value="${_name == ''}">
+    <xacro:property name="tf_prefix" value=""/>
+  </xacro:if>
+
+  <link name="${tf_prefix}$(arg base_frame_id)"/>
+
+  <link name="${tf_prefix}body">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="1"/>
+      <inertia ixx="100"  ixy="0"  ixz="0" iyy="100" iyz="0" izz="100" />
+    </inertial>
+  
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <box size="0.07 0.03 0.01" />
+      </geometry>
+      <material name="black"/>
+    </visual>
+  
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.07 0.03 0.01" />
+      </geometry>
+    </collision>
+  </link>  
+
+  <link name="${tf_prefix}${camera_frame_id}">
+
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <cylinder radius="0.01" length="0.01" />
+      </geometry>
+      <material name="black"/>
+    </visual>
+  
+  </link>  
+
+  <link name="${tf_prefix}${camera_optical_frame_id}"/>
+
+  <joint name="${tf_prefix}_joint_body" type="fixed">
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <parent link="${tf_prefix}$(arg base_frame_id)"/>
+      <child link="${tf_prefix}body"/>
+  </joint>
+
+  <joint name="${tf_prefix}_joint_camera" type="fixed">
+      <origin xyz="0 0 0.0" rpy="0 0 0"/>
+      <parent link="${tf_prefix}$(arg base_frame_id)"/>
+      <child link="${tf_prefix}$(arg camera_frame_id)"/>
+  </joint>
+
+  <joint name="${tf_prefix}_joint_camera_optical" type="fixed">
+      <origin xyz="0 0 0.0" rpy="0 0 0"/>
+      <parent link="${tf_prefix}$(arg camera_frame_id)"/>
+      <child link="${tf_prefix}$(arg camera_optical_frame_id)"/>
+  </joint>
+
+  <material name="black">
+      <color rgba="0.0 0.0 0.0 1.0"/>
+  </material>
+
+</robot>
