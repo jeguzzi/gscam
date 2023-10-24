@@ -24,22 +24,12 @@
   <arg default="videoconvert ! amlvenc bitrate=$(var bitrate) gop=1 ! h265parse config-interval=-1 disable-passthrough=true" name="h265_config"/>
   <arg default="videoconvert ! amlvenc bitrate=$(var bitrate) ! rtph265pay ! udpsink host=$(var udp_ip) port=$(var udp_port) async=false" name="udp_config"/>
   <arg default="videoconvert ! amlvenc bitrate=$(var bitrate) ! rtph265pay ! rtpstreampay ! tcpserversink host=$(var tcp_ip) port=$(var tcp_port) async=false" name="tcp_config"/>
-  <let name="tf_prefix" value="$(eval '\'$(var name)/\' if \'$(var name)\' else \'\'')"/>
+  <let name="tf_prefix" value="$(eval '\'$(var name)/imx415\' if \'$(var name)\' else \'imx415\'')"/>
   <arg default="$(var tf_prefix)/camera_optical_link" name="frame_id"/>
   <arg default="default" name="camera_name"/>
-  <arg default="uncalibrated_parameters.ini" name="camera_info"/>
-  <arg default="0.0" name="x"/>
-  <arg default="0.0" name="y"/>
-  <arg default="0.0" name="z"/>
-  <arg default="0.0" name="roll"/>
-  <arg default="0.0" name="pitch"/>
-  <arg default="0.0" name="yaw"/>
-  <arg default="" name="parent_frame_id"/>
-  <let name="tf2_ros_old_api" value="$(eval '\'$(env ROS_DISTRO)\' == \'foxy\'')"/>
-  <let name="has_parent_frame" value="$(eval '\'$(var parent_frame_id)\' != \'\'')"/>
-  <arg default="false" name="model"/>
+  <arg default="imx415.ini" name="camera_info"/>
   <group>
-    <push-ros-namespace namespace="$(var name)"/>
+    <push-ros-namespace namespace="$(var tf_prefix)"/>
     <node exec="gscam_multi_node" name="gscam" output="screen" pkg="gscam">
       <param name="camera_name" value="$(var camera_name)"/>
       <param name="camera_info_url" value="package://gscam/config/$(var camera_info)"/>
@@ -95,17 +85,5 @@
         </param>
       </param>
     </node>
-    <include file="$(find-pkg-share gscam)/launch/vim4.launch.py" if="$(var model)">
-      <arg name="camera_model" value="imx415"/>
-      <arg name="name" value="$(var name)"/>
-    </include>
-    <group if="$(var has_parent_frame)">
-      <group if="$(var tf2_ros_old_api)">
-        <node args="$(var x) $(var y) $(var z) $(var roll) $(var pitch) $(var yaw) $(var parent_frame_id) $(var name)/base_link " exec="static_transform_publisher" name="static_tf_pub_lidar" output="screen" pkg="tf2_ros"/>
-      </group>
-      <group unless="$(var tf2_ros_old_api)">
-        <node args="--x $(var x) --y $(var y) --z $(var z) --roll $(var roll) --pitch $(var pitch) --yaw $(var yaw) --frame-id $(var parent_frame_id) --child-frame-id $(var name)/base_link " exec="static_transform_publisher" name="static_tf_pub_lidar" output="screen" pkg="tf2_ros"/>
-      </group>
-    </group>
   </group>
 </launch>
