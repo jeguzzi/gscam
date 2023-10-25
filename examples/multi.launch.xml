@@ -12,8 +12,22 @@
   <arg name="source_format" default="BGR"/>
   <arg name="raw_format" default="BGR"/>
 
-  <let name="source" value="videotestsrc pattern=ball is-live=true ! video/x-raw,format=$(var source_format),width=$(var width),height=$(var height) ! videoconvert" if="$(eval '\'$(var src)\' == \'test\'')"/>
-  <let name="source" value="avfvideosrc ! video/x-raw,format=$(var source_format),width=$(var width),height=$(var height) ! videoconvert" if="$(eval '\'$(var src)\' == \'avf\'')"/>
+  <arg name="bitrate" default="5000"/>
+
+  <let name="source_config" value="videotestsrc pattern=ball is-live=true ! video/x-raw,format=$(var source_format),width=$(var width),height=$(var height) ! videoconvert" if="$(eval '\'$(var src)\' == \'test\'')"/>
+  <let name="source_config" value="avfvideosrc ! video/x-raw,format=$(var source_format),width=$(var width),height=$(var height) ! videoconvert" if="$(eval '\'$(var src)\' == \'avf\'')"/>
+
+  <arg default="jpegenc" name="jpeg_encoder"/>
+  <arg default="videoconvert ! $(var jpeg_encoder) quality=50" name="jpeg_config"/>
+  <arg default="videoconvert" name="raw_config"/>
+  <arg default="videoconvert ! vtenc_h264_hw max-keyframe-interval=1 realtime=true bitrate=$(var bitrate) allow-frame-reordering=false ! h264parse config-interval=-1 disable-passthrough=true" name="h264_config"/>
+  <arg default="videoconvert ! vtenc_h265_hw max-keyframe-interval=1 realtime=true bitrate=$(var bitrate) allow-frame-reordering=false ! h265parse config-interval=-1 disable-passthrough=true" name="h265_config"/>
+  <arg default="videoconvert ! x264enc tune=zerolatency ! rtph264pay ! udpsink host=localhost port=12345 async=false" name="udp_config"/>
+  <arg default="videoconvert ! x264enc tune=zerolatency ! rtph264pay ! rtpstreampay ! tcpserversink host=localhost port=54321 async=false" name="tcp_config"/>
+  <let name="tf_prefix" value="$(eval '\'$(var name)/imx415\' if \'$(var name)\' else \'imx415\'')"/>
+  <arg default="$(var tf_prefix)/camera_optical_link" name="frame_id"/>
+  <arg default="default" name="camera_name"/>
+  <arg default="imx415.ini" name="camera_info"/>
 
   <arg name="raw" default="0"/>
   <arg name="jpeg" default="0"/>
@@ -24,19 +38,20 @@
   <arg name="file" default="0"/>
   <arg name="h265" default="0"/>
   <arg name="fake" default="0"/>
-
-  <arg name="bitrate" default="5000"/>
+  <arg name="fps" default="0"/>
+  
 
   <arg name="sync_sink" default="true"/>
   <arg name="preroll" default="true"/>
   <arg name="use_gst_timestamps" default="true"/>
   <arg name="use_sensor_data_qos" default="true"/>
   <arg name="go_to_ready_when_paused" default="true"/>
+  <arg name="count_sensors_period" default="1.0"/>
 
   <node namespace="$(var name)" name="gscam" pkg="gscam" exec="gscam_multi_node" output="screen">
     <param name="camera_name" value="default"/>
     <param name="camera_info_url" value="package://gscam/examples/uncalibrated_parameters.ini"/>
-    <param name="source" value="$(var source)"/>
+    <param name="source" value="$(var source_config)"/>
     <!-- <param name="gscam_config" value=""/> -->
     <param name="frame_id" value="$(var frame_id)"/>
     <param name="sync_sink" value="$(var sync_sink)"/>
@@ -50,33 +65,37 @@
     <param name="tcp" value="$(var tcp)"/>
     <param name="file" value="$(var file)"/>
     <param name="fake" value="$(var fake)"/>
+    <param name="fps" value="$(var fps)"/>
     <param name="use_gst_timestamps" value="$(var use_gst_timestamps)"/>
     <param name="use_sensor_data_qos" value="$(var use_sensor_data_qos)"/>
     <param name="go_to_ready_when_paused" value="$(var go_to_ready_when_paused)"/>
 
     <param name="ros_sinks">
       <param name="raw" >
-        <param name="config" value="videoconvert"/>
+        <param name="config" value="$(var raw_config)"/>
         <param name="caps" value="video/x-raw,format=$(var raw_format)"/>
         <param name="topic" value="image_raw"/>
         <param name="enabled" value="$(eval '$(var raw) >= 0')"/>
       </param>
       <param name="jpeg">
-        <param name="config" value="videoconvert ! jpegenc quality=50"/>
+        <param name="config" value="$(var jpeg_config)"/>
         <param name="caps" value="image/jpeg"/>
         <param name="topic" value="image_raw/compressed"/>
+        <param name="enabled" value="$(eval '$(var jpeg) >= 0')"/>
       </param>
       <param name="h264">
-        <param name="config" value='videoconvert ! vtenc_h264_hw max-keyframe-interval=1 realtime=true bitrate=$(var bitrate) allow-frame-reordering=false ! h264parse config-interval=-1 disable-passthrough=true'/> 
+        <param name="config" value='$(var h264_config)'/> 
         <param name="caps" value="video/x-h264,parsed=true,stream-format=byte-stream,alignment=au"/>
         <param name="topic" value="image_raw/ffmpeg"/>
         <param name="encoding" value="libx264"/>
+        <param name="enabled" value="$(eval '$(var h264) >= 0')"/>
       </param>
       <param name="h265">
-        <param name="config" value='videoconvert ! vtenc_h265_hw max-keyframe-interval=1 realtime=true bitrate=$(var bitrate) allow-frame-reordering=false ! h265parse config-interval=-1 disable-passthrough=true'/> 
+        <param name="config" value='$(var h265_config)'/> 
         <param name="caps" value="video/x-h265,parsed=true,stream-format=byte-stream,alignment=au"/>
         <param name="topic" value="image_raw/ffmpeg"/>
         <param name="encoding" value="hevc"/>
+        <param name="enabled" value="$(eval '$(var h265) >= 0')"/>
       </param>
     </param>
     <param name="sinks">
@@ -84,16 +103,20 @@
         <param name="config" value="videoconvert ! glimagesink async=false"/>
       </param> -->
       <param name="udp">
-        <param name="config" value="videoconvert ! x264enc tune=zerolatency ! rtph264pay ! udpsink host=localhost port=12345 async=false"/>
+        <param name="config" value="$(var udp_config)"/>
+        <param name="enabled" value="$(eval '$(var udp) >= 0')"/>
       </param>
       <param name="tcp">
-        <param name="config" value="videoconvert ! x264enc tune=zerolatency ! rtph264pay ! rtpstreampay ! tcpserversink host=localhost port=54321 async=false"/>
+        <param name="config" value="$(var tcp_config)"/>
+        <param name="enabled" value="$(eval '$(var tcp) >= 0')"/>
       </param>
       <param name="fake">
         <param name="config" value="videoconvert ! fakesink async=false"/>
+        <param name="enabled" value="$(eval '$(var fake) >= 0')"/>
       </param>
       <param name="fps">
         <param name="config" value="videoconvert ! fpsdisplaysink text-overlay=false video-sink=fakesink async=true"/>
+        <param name="enabled" value="$(eval '$(var fps) >= 0')"/>
       </param>
 <!--       <param name="file">
         <param name="config" value="videoconvert ! x264enc ! h264parse ! qtmux ! filesink location=test.mov async=false"/>

@@ -33,7 +33,12 @@ extern "C" {
 #include "sensor_msgs/msg/compressed_image.hpp"
 #include "sensor_msgs/msg/image.hpp"
 
-#define ON_DEMAND_AVAILABLE false
+#if __has_include("rclcpp/event_handler.hpp")
+#include "rclcpp/event_handler.hpp"
+#define EVENT_HANDLER_AVAILABLE true
+#else
+#define EVENT_HANDLER_AVAILABLE false
+#endif
 
 namespace gscam {
 
@@ -101,7 +106,7 @@ bool Sink::init(GstElement *bin) {
 
 bool ROSSink::init(GstElement *bin, const GstCaps *caps,
                    const std::string &topic, const std::string &frame_id,
-                   const rclcpp::QoS &qos) {
+                   const rclcpp::QoS &qos, float count_subs_period_s) {
   // RCLCPP_INFO(cam->get_logger(), "ROSSink init");
 
   GstElement *queue =
@@ -186,10 +191,6 @@ void Sink::set_activation(int v) {
 
   ActiveMode value{v};
 
-  if ((value == ActiveMode::ON_DEMAND) && !ON_DEMAND_AVAILABLE) {
-    RCLCPP_INFO(cam->get_logger(), "On-demand only supported from ROS 2 Iron");
-    return;
-  }
   if (activation != value) {
     activation = value;
     check_activation();
@@ -216,6 +217,38 @@ bool ROSSink::should_be_active() const {
          (activation == ActiveMode::ON_DEMAND && subscribers > 0);
 }
 
+template <typename T>
+typename rclcpp::Publisher<T>::SharedPtr ROSSink::create_publisher(
+    const std::string &topic_, const rclcpp::QoS &qos,
+    float count_subs_period_s) {
+  rclcpp::PublisherOptions pub_options;
+  topic = topic_;
+#if EVENT_HANDLER_AVAILABLE
+  // RCLCPP_INFO(cam->get_logger(), "ON DEMAND AVAILABLE");
+  pub_options.event_callbacks.matched_callback =
+      [this](const rclcpp::MatchedInfo &s) {
+        RCLCPP_INFO(cam->get_logger(), "matched_callback %zu", s.current_count);
+        subscribers = s.current_count;
+        check_activation();
+      };
+#else
+  if (count_subs_period_s > 0) {
+    count_subs_timer = cam->create_wall_timer(
+        std::chrono::milliseconds(
+            static_cast<unsigned long>(1000 * count_subs_period_s)),
+        [this]() {
+          subscribers = cam->count_subscribers(topic);
+          check_activation();
+        });
+  } else {
+    RCLCPP_WARN(cam->get_logger(),
+                "Will not monitor subscribers: negative period %.2f s",
+                count_subs_period_s);
+  }
+#endif  // EVENT_HANDLER_AVAILABLE
+  return cam->create_publisher<T>(topic, qos, pub_options);
+}
+
 std::tuple<int, int> get_image_size(GstElement *sink) {
   GstPad *pad = gst_element_get_static_pad(sink, "sink");
   const GstCaps *caps = gst_pad_get_current_caps(pad);
@@ -234,8 +267,9 @@ static std::map<const std::string, const std::string> encodings = {
 
 bool RawROSSink::init(GstElement *bin, const GstCaps *caps,
                       const std::string &topic, const std::string &frame_id,
-                      const rclcpp::QoS &qos) {
-  if (!ROSSink::init(bin, caps, topic, frame_id, qos)) return false;
+                      const rclcpp::QoS &qos, float count_subs_period_s) {
+  if (!ROSSink::init(bin, caps, topic, frame_id, qos, count_subs_period_s))
+    return false;
 
   // RCLCPP_INFO(cam->get_logger(), "RawROSSink init");
 
@@ -262,12 +296,12 @@ bool RawROSSink::init(GstElement *bin, const GstCaps *caps,
   msg.header.frame_id = frame_id;
   msg.is_bigendian = false;
   // RCLCPP_INFO(cam->get_logger(), "create pub on %s", topic.c_str()c);
-  pub = cam->create_publisher<sensor_msgs::msg::Image>(topic, qos);
+  pub = create_publisher<sensor_msgs::msg::Image>(topic, qos,
+                                                  count_subs_period_s);
   return true;
 }
 
 void RawROSSink::publish(GstSample *sample) {
-
   GstBuffer *buf = gst_sample_get_buffer(sample);
   GstMemory *memory = gst_buffer_get_memory(buf, 0);
   GstMapInfo info;
@@ -334,7 +368,6 @@ void RawROSSink::publish(GstSample *sample) {
   pub->publish(msg);
   cam->publish_info(buf->pts);
 
-
   // Release the buffer
   if (buf) {
     gst_memory_unmap(memory, &info);
@@ -344,11 +377,13 @@ void RawROSSink::publish(GstSample *sample) {
 
 bool JPEGROSSink::init(GstElement *bin, const GstCaps *caps,
                        const std::string &topic, const std::string &frame_id,
-                       const rclcpp::QoS &qos) {
-  if (!ROSSink::init(bin, caps, topic, frame_id, qos)) return false;
+                       const rclcpp::QoS &qos, float count_subs_period_s) {
+  if (!ROSSink::init(bin, caps, topic, frame_id, qos, count_subs_period_s))
+    return false;
   msg.header.frame_id = frame_id;
   msg.format = "jpeg";
-  pub = cam->create_publisher<sensor_msgs::msg::CompressedImage>(topic, qos);
+  pub = create_publisher<sensor_msgs::msg::CompressedImage>(
+      topic, qos, count_subs_period_s);
   return true;
 }
 
@@ -387,12 +422,13 @@ void JPEGROSSink::publish(GstSample *sample) {
 }
 
 bool FFMPEGROSSink::init(GstElement *bin, const GstCaps *caps,
-                       const std::string &topic, const std::string &frame_id,
-                       const rclcpp::QoS &qos) {
-  if (!ROSSink::init(bin, caps, topic, frame_id, qos)) return false;
+                         const std::string &topic, const std::string &frame_id,
+                         const rclcpp::QoS &qos, float count_subs_period_s) {
+  if (!ROSSink::init(bin, caps, topic, frame_id, qos, count_subs_period_s))
+    return false;
   msg.header.frame_id = frame_id;
-  pub = cam->create_publisher<ffmpeg_image_transport_msgs::msg::FFMPEGPacket>(
-      topic, qos);
+  pub = create_publisher<ffmpeg_image_transport_msgs::msg::FFMPEGPacket>(
+      topic, qos, count_subs_period_s);
   return true;
 }
 
@@ -516,7 +552,7 @@ void GSCamMulti::add_ros_sink(const std::string &name, std::string config,
   }
   const auto qos =
       use_sensor_data_qos_ ? rclcpp::SensorDataQoS() : rclcpp::QoS{1};
-  if (ros_sink->init(bin, caps, topic, frame_id_, qos)) {
+  if (ros_sink->init(bin, caps, topic, frame_id_, qos, count_subs_period_s)) {
     sinks[name] = ros_sink;
     // declare_parameter(name, 0);
     RCLCPP_INFO(get_logger(), "Added ros sink %s", name.c_str());
@@ -666,12 +702,18 @@ GSCamMulti::~GSCamMulti() {
 
   gst_element_send_event(pipeline_, gst_event_new_eos());
   sleep(1);
+  RCLCPP_INFO(get_logger(), "Shutting down: will set pipeline to READY");
   gst_element_set_state(pipeline_, GST_STATE_READY);
+  gst_element_get_state(pipeline_, NULL, NULL, -1);
+  RCLCPP_INFO(get_logger(), "Shutting down: has set pipeline to READY");
   sleep(1);
-
+  RCLCPP_INFO(get_logger(), "Shutting down: will quit loop");
   g_main_loop_quit(main_loop);
   pipeline_thread_.join();
-  clean();
+  RCLCPP_INFO(get_logger(), "Shutting down: loop finished");
+  cleanup_stream();
+  RCLCPP_INFO(get_logger(), "Shutting down: done");
+  rclcpp::shutdown();
 }
 
 bool GSCamMulti::configure() {
@@ -706,8 +748,6 @@ bool GSCamMulti::configure() {
                                          << gsconfig_rosparam << "\"");
   }
 
-
-
   // Get additional GSCamMulti configuration
   sync_sink_ = declare_parameter("sync_sink", true);
   preroll_ = declare_parameter("preroll", false);
@@ -739,14 +779,15 @@ bool GSCamMulti::configure() {
   // }
 
   use_sensor_data_qos_ = declare_parameter("use_sensor_data_qos", false);
-
+  count_subs_period_s = declare_parameter("count_subs_period", 1.0f);
   go_to_ready_when_paused = declare_parameter("go_to_ready_when_paused", true);
 
   return true;
 }
 
 bool GSCamMulti::stop_stream() {
-  gst_element_set_state(pipeline_, go_to_ready_when_paused? GST_STATE_READY : GST_STATE_PAUSED);
+  gst_element_set_state(
+      pipeline_, go_to_ready_when_paused ? GST_STATE_READY : GST_STATE_PAUSED);
   if (gst_element_get_state(pipeline_, NULL, NULL, -1) ==
       GST_STATE_CHANGE_FAILURE) {
     RCLCPP_FATAL(get_logger(),
@@ -771,7 +812,7 @@ bool GSCamMulti::init_stream() {
 
   GError *error = 0;  // Assignment to zero is a gst requirement
 
-  GstElement * source = gst_parse_launch(gsconfig_.c_str(), &error);
+  GstElement *source = gst_parse_launch(gsconfig_.c_str(), &error);
   if (source == NULL || error) {
     RCLCPP_FATAL_STREAM(get_logger(), error->message);
     return false;
@@ -885,8 +926,8 @@ void GSCamMulti::publish_stream()
 
 void GSCamMulti::cleanup_stream() {
   // Clean up
-  RCLCPP_INFO(get_logger(), "Stopping gstreamer pipeline...");
   if (pipeline_) {
+    RCLCPP_INFO(get_logger(), "Cleaning up the pipeline");
     gst_element_set_state(pipeline_, GST_STATE_NULL);
     gst_object_unref(pipeline_);
     pipeline_ = NULL;
@@ -906,19 +947,6 @@ void GSCamMulti::init() {
   for (auto &[k, v] : sinks) {
     v->set_activation(get_parameter(v->name).as_int());
   }
-}
-
-void GSCamMulti::clean() {
-  this->cleanup_stream();
-
-  // RCLCPP_INFO(get_logger(), "GStreamer stream stopped!");
-
-  // if (reopen_on_eof_) {
-  //   RCLCPP_INFO(get_logger(), "Reopening stream...");
-  // } else {
-  //   RCLCPP_INFO(get_logger(), "Cleaning up stream and exiting...");
-  // }
-  rclcpp::shutdown();
 }
 
 void GSCamMulti::run() {

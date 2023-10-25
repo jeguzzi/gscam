@@ -65,15 +65,22 @@ struct Sink {
 
 struct ROSSink : Sink {
   explicit ROSSink(GSCamMulti *cam, const std::string &name)
-      : Sink(cam, name), subscribers(0){};
+      : Sink(cam, name),
+        subscribers(0),
+        count_subs_timer(nullptr){};
   ~ROSSink(){};
   virtual bool should_be_active() const override;
   virtual bool init(GstElement *bin, const GstCaps *caps,
                     const std::string &topic, const std::string &frame_id,
-                    const rclcpp::QoS &qos);
+                    const rclcpp::QoS &qos, float count_subs_period_s = 1.0f);
   virtual void publish(GstSample *sample) = 0;
 
+  template <typename T>
+  typename rclcpp::Publisher<T>::SharedPtr create_publisher(const std::string &topic,
+                                                   const rclcpp::QoS &qos, float count_subs_period_s = 1.0f);
   int subscribers;
+  rclcpp::TimerBase::SharedPtr count_subs_timer;
+  std::string topic;
 };
 
 struct RawROSSink : ROSSink {
@@ -81,7 +88,7 @@ struct RawROSSink : ROSSink {
       : ROSSink(cam, name), pub(nullptr){};
 
   bool init(GstElement *bin, const GstCaps *caps, const std::string &topic,
-            const std::string &frame_id, const rclcpp::QoS &qos) override;
+            const std::string &frame_id, const rclcpp::QoS &qos, float count_subs_period_s = 1.0f) override;
   void publish(GstSample *sample) override;
 
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub;
@@ -94,7 +101,7 @@ struct JPEGROSSink : ROSSink {
       : ROSSink(cam, name), pub(nullptr), jpegenc(nullptr){};
 
   bool init(GstElement *bin, const GstCaps *caps, const std::string &topic,
-            const std::string &frame_id, const rclcpp::QoS &qos) override;
+            const std::string &frame_id, const rclcpp::QoS &qos, float count_subs_period_s = 1.0f) override;
   void publish(GstSample *sample) override;
 
   rclcpp::Publisher<sensor_msgs::msg::CompressedImage>::SharedPtr pub;
@@ -116,7 +123,7 @@ struct FFMPEGROSSink : ROSSink {
   };
 
   bool init(GstElement *bin, const GstCaps *caps, const std::string &topic,
-            const std::string &frame_id, const rclcpp::QoS &qos) override;
+            const std::string &frame_id, const rclcpp::QoS &qos, float count_subs_period_s = 1.0f) override;
   void publish(GstSample *sample) override;
 
   rclcpp::Publisher<ffmpeg_image_transport_msgs::msg::FFMPEGPacket>::SharedPtr
@@ -149,7 +156,6 @@ class GSCamMulti : public rclcpp::Node {
   bool stop_stream();
   void run();
   void init();
-  void clean();
   bool should_be_active() const;
   void check_activation();
   void publish_info(uint64_t pts);
@@ -187,6 +193,7 @@ class GSCamMulti : public rclcpp::Node {
   std::string camera_info_url_;
   bool use_sensor_data_qos_;
   bool go_to_ready_when_paused;
+  float count_subs_period_s;
 
   // ROS Inteface
   // Calibration between ros::Time and gst timestamps
