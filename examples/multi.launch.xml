@@ -46,7 +46,7 @@
   <arg name="use_gst_timestamps" default="true"/>
   <arg name="use_sensor_data_qos" default="true"/>
   <arg name="go_to_ready_when_paused" default="true"/>
-  <arg name="count_sensors_period" default="1.0"/>
+  <arg name="count_subs_period" default="1.0"/>
 
   <node namespace="$(var name)" name="gscam" pkg="gscam" exec="gscam_multi_node" output="screen">
     <param name="camera_name" value="default"/>
@@ -69,6 +69,7 @@
     <param name="use_gst_timestamps" value="$(var use_gst_timestamps)"/>
     <param name="use_sensor_data_qos" value="$(var use_sensor_data_qos)"/>
     <param name="go_to_ready_when_paused" value="$(var go_to_ready_when_paused)"/>
+    <param name="count_subs_period" value="$(var count_subs_period)"/>
 
     <param name="ros_sinks">
       <param name="raw" >
