@@ -945,7 +945,11 @@ void GSCamMulti::init() {
       create_publisher<sensor_msgs::msg::CameraInfo>("camera_info", qos);
 
   for (auto &[k, v] : sinks) {
-    v->set_activation(get_parameter(v->name).as_int());
+    if (has_parameter(v->name)) {
+      v->set_activation(get_parameter(v->name).as_int());
+    } else {
+      v->set_activation(1);
+    }
   }
 }
 
