@@ -24,6 +24,9 @@
   <arg name="camera_frame_id" default="$(var tf_prefix)camera_link"/>
   <let name="source" value="tcpclientsrc host=$(var ip) port=$(var port) ! application/x-rtp-stream ! rtpstreamdepay ! rtpjitterbuffer ! rtph$(var stream_format)depay"/>
 
+  <arg name="use_gst_timestamps" default="true"/>
+  <arg name="use_sensor_data_qos" default="false"/>
+
   <!-- <let name="source" value="videotestsrc ! video/x-raw,width=640,height=360 ! videoconvert"/> -->
 
   <group>
@@ -39,8 +42,8 @@
     <param name="preroll" value="true"/>
     <param name="raw" value="$(var raw)"/>
     <param name="stream" value="$(var stream)"/>
-    <param name="use_gst_timestamps" value="true"/>
-    <param name="use_sensor_data_qos" value="true"/>
+    <param name="use_gst_timestamps" value="$(var use_gst_timestamps)"/>
+    <param name="use_sensor_data_qos" value="$(var use_sensor_data_qos)"/>
     <param name="go_to_ready_when_paused" value="true"/>
     <param name="ros_sinks">
       <param name="raw">
