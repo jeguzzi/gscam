@@ -2,21 +2,43 @@
 
   <arg name="name" default=""/>
   <arg name="raw" default="1"/>
+  <arg name="stream" default="1"/>
   <arg name="raw_format" default="BGR"/>
-  <arg name="ip" default="192.168.201.140"/>
+  <arg name="stream_format" default="264"/>
+  <arg name="stream_resolution" default="360"/>
+  <arg name="ip" default="192.168.201.121"/>
+  <let name="x" value="0.0"/>
+  <let name="y" value="0.0"/>
+  <let name="z" value="0.0"/>
+  <let name="roll" value="-1.5707963267948966"/>
+  <let name="pitch" value="0.0"/>
+  <let name="yaw" value="-1.5707963267948966"/>
+  
+  <arg name="port" default="12345"/>
+  <arg name="publish_info" default="true"/>
+  <let name="camera_info_url" value="package://gscam/examples/imx415_$(var stream_resolution).yaml" if="$(var publish_info)"/>
+  <let name="camera_info_url" value="" unless="$(var publish_info)"/>
 
   <let name="tf_prefix" value="$(eval '\'$(var name)/\' if \'$(var name)\' else \'\'')"/>
-  <arg name="frame_id" default="$(var tf_prefix)/camera_optical_link"/>
-  <let name="source" value="tcpclientsrc host=$(var ip) port=12345 ! application/x-rtp-stream ! rtpstreamdepay ! rtpjitterbuffer ! rtph265depay ! avdec_h265"/>
+  <arg name="optical_frame_id" default="$(var tf_prefix)camera_optical_link"/>
+  <arg name="camera_frame_id" default="$(var tf_prefix)camera_link"/>
+  <let name="source" value="tcpclientsrc host=$(var ip) port=$(var port) ! application/x-rtp-stream ! rtpstreamdepay ! rtpjitterbuffer ! rtph$(var stream_format)depay"/>
 
-  <node namespace="$(var name)" name="gscam" pkg="gscam" exec="gscam_multi_node" output="screen">
+  <!-- <let name="source" value="videotestsrc ! video/x-raw,width=640,height=360 ! videoconvert"/> -->
+
+  <group>
+
+  <push-ros-namespace namespace="$(var name)"/>
+
+  <node name="gscam" pkg="gscam" exec="gscam_multi_node" output="screen">
     <param name="camera_name" value="default"/>
-    <param name="camera_info_url" value="package://gscam/examples/uncalibrated_parameters.ini"/>
+    <param name="camera_info_url" value="$(var camera_info_url)"/>
     <param name="source" value="$(var source)"/>
-    <param name="frame_id" value="$(var frame_id)"/>
+    <param name="frame_id" value="$(var optical_frame_id)"/>
     <param name="sync_sink" value="true"/>
     <param name="preroll" value="true"/>
     <param name="raw" value="$(var raw)"/>
+    <param name="stream" value="$(var stream)"/>
     <param name="use_gst_timestamps" value="true"/>
     <param name="use_sensor_data_qos" value="true"/>
     <param name="go_to_ready_when_paused" value="true"/>
@@ -24,9 +46,19 @@
       <param name="raw">
         <param name="config" value="videoconvert"/>
         <param name="caps" value="video/x-raw,format=$(var raw_format)"/>
-        <param name="topic" value="image_raw_1"/>
+        <param name="topic" value="image_raw"/>
+      </param>
+      <param name="stream">
+        <param name="config" value="h$(var stream_format)parse config-interval=-1 disable-passthrough=true"/>
+        <param name="caps" value="video/x-h$(var stream_format),parsed=true,stream-format=byte-stream,alignment=au"/>
+        <param name="topic" value="image_ffmpeg"/>
+        <!-- <param name="encoding" value="hevc"/> -->
       </param>
     </param>
   </node>
+
+  <node args="--x $(var x) --y $(var y) --z $(var z) --roll $(var roll) --pitch $(var pitch) --yaw $(var yaw) --frame-id $(var camera_frame_id) --child-frame-id $(var optical_frame_id) " exec="static_transform_publisher" name="static_tf_pub" output="screen" pkg="tf2_ros"/>
+
+  </group>
 
 </launch>
