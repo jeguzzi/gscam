@@ -44,7 +44,7 @@
     <param name="go_to_ready_when_paused" value="true"/>
     <param name="ros_sinks">
       <param name="raw">
-        <param name="config" value="videoconvert"/>
+        <param name="config" value="avdec_h$(var stream_format) ! videoconvert"/>
         <param name="caps" value="video/x-raw,format=$(var raw_format)"/>
         <param name="topic" value="image_raw"/>
       </param>
